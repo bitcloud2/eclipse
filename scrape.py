@@ -6,21 +6,11 @@ import bs4
 import numpy as np
 import pandas as pd
 import requests
-import bs4
+
+import config
 
 
-def scrape_general(save_copy=False):
-    
-    link = "https://zkillboard.com/kills/nullsec/"
-    # Go to the link and get the html as a string
-    html = requests.get(link)
-    
-    # If not error
-    if html.status_code != 200:
-        print "Status error returned: 200"
-
-
-def load_fits(directory='/home/bitcloudo/eclipse/fits/unkindness/'):
+def load_fits(directory=config.unkindness_fits_path):
     fit_list = []
     for filename in os.listdir(directory):
         if filename.endswith(".txt"):
@@ -35,11 +25,15 @@ def create_dict(fit, item_type, item_name, item_count):
     
     return {'fit': fit, 'item_type': item_type, 'item_name': item_name, 'item_count': item_count}
 
+def count_total(current_fit):
+    count = 0
+    for k in config.unkindness_stock_master.keys():
+        count += config.unkindness_stock_master[k][current_fit]
+    
+    return count
+
+
 def fits_dataframe(fit_list):
-    current_fit = ''
-    current_type = 'ship'
-    current_item = ''
-    current_line = ['line', 'line', 'line', 'line']
     columns = ['fit', 'item_type', 'item_name', 'item_count']
     df = pd.DataFrame(columns=columns)
 
@@ -51,7 +45,6 @@ def fits_dataframe(fit_list):
         current_type = 'ship'
         current_item = ''
         current_line = ['line', 'line', 'line', 'line']
-        columns = ['fit', 'item_type', 'item_name', 'item_count']
 
         for i, line in enumerate(fit.splitlines()):
             current_line = current_line[1:]
@@ -60,7 +53,7 @@ def fits_dataframe(fit_list):
             if i == 0:
                 current_fit = line
                 current_item = line.split(',')[0][1:]
-                item_count = 1
+                item_count = count_total(current_fit)
                 df = df.append([create_dict(current_fit, current_type, current_item, item_count)])
             elif i == 1:
                 current_type = 'module'
@@ -71,9 +64,11 @@ def fits_dataframe(fit_list):
             if i!= 0 and line != '':
                 if current_type == 'ammo':
                     current_item, item_count = line.rsplit(' x')
+                    item_count = int(item_count)
+                    item_count *= count_total(current_fit)
                 else:
                     current_item = line
-                    item_count = 1
+                    item_count = count_total(current_fit)
                 df = df.append([create_dict(current_fit, current_type, current_item, item_count)])
             else:
                 pass
