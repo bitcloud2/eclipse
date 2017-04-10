@@ -23,22 +23,33 @@ def load_fits(directory=config.unkindness_fits_path):
     return fit_list
 
 
-def create_dict(fit, item_type, item_name, item_count):
+def create_dict(fit, item_type, item_name, item_count, system):
     
-    return {'fit': fit, 'item_type': item_type, 'item_name': item_name, 'item_count': item_count}
+    return {'fit': fit,
+            'item_type': item_type,
+            'item_name': item_name,
+            'item_count': item_count,
+            'system': system}
 
 
 def count_total(current_fit):
-    count = 0
-    for k in config.unkindness_stock_master.keys():
-        count += config.unkindness_stock_master[k][current_fit]
+    count = []
+    for system in config.unkindness_stock_master.keys():
+        count.append((config.unkindness_stock_master[system][current_fit],
+                      system))
     
     return count
 
+def system_counts(df, assembled_dict, stock_dict, current_fit, current_type, current_item):
+    for k in config.unkindness_stock_master.keys():
+        df_assembled
 
 def fits_dataframe(fit_list):
-    columns = ['fit', 'item_type', 'item_name', 'item_count']
+    columns = ['fit', 'item_type', 'item_name', 'item_count', 'system']
     df = pd.DataFrame(columns=columns)
+
+    # Assess the stocks from each system
+    assembled_dict, stock_dict = stock()
 
     for fit_path in fit_list:
         with open(fit_path, 'r') as f:
@@ -57,8 +68,9 @@ def fits_dataframe(fit_list):
             if i == 0:
                 current_fit = line
                 current_item = line.split(',')[0][1:]
-                item_count = count_total(current_fit)
-                df = df.append([create_dict(current_fit, current_type, current_item, item_count)])
+                count_list = count_total(current_fit)
+                for item_count, system in count_list:
+                    df = df.append([create_dict(current_fit, current_type, current_item, item_count, system)])
             elif i == 1:
                 current_type = 'module'
             elif len(current_set) == 1:
@@ -72,23 +84,32 @@ def fits_dataframe(fit_list):
                     item_count *= count_total(current_fit)
                 else:
                     current_item = line
-                    item_count = count_total(current_fit)
-                df = df.append([create_dict(current_fit, current_type, current_item, item_count)])
+                    count_list = count_total(current_fit)
+                # Loop through each of systems adding rows for the unique item's counts
+                for item_count, system in count_list:
+                    df = df.append([create_dict(current_fit, current_type, current_item, item_count, system)])
             else:
                 pass
     
     return df
 
 
-def stock(system):
-    df_total = pd.DataFrame()
-    for hanger in ['ships', 'items']:
-        with open('/home/bitcloudo/eclipse/stock/unkindness/{}_{}.txt'.format(system, hanger)) as f:
-            reader = csv.reader(f, delimiter="\t")
-            d = list(reader)
-        df_total = df_total.append(pd.DataFrame(d, columns=config.ship_hanger_columns))
-    df_assembled = df_total[df_total['quantity'] == '']
-    df_stock = df_total[df_total['quantity'] != '']
+def stock():
+    # Loop through systems where fits are needed.
+    for system in config.unkindness_stock_master.keys():
+        df_total = pd.DataFrame()
+        # Loop through each of the hangers
+        for hanger in ['ships', 'items']:
+            with open('/home/bitcloudo/eclipse/stock/unkindness/{}_{}.txt'.format(system, hanger)) as f:
+                reader = csv.reader(f, delimiter="\t")
+                d = list(reader)
+            df_temp = pd.DataFrame(d, columns=config.ship_hanger_columns)
+            df_temp['system'] = system
+            df_total = df_total.append(df_temp)
+        # Any items/ships that have been assembled, ie Fit ships, are stored here
+        df_assembled = df_total[df_total['quantity'] == '']
+        # Any items/ships that have not been assembled, ie backstock items, are stored here
+        df_stock = df_total[df_total['quantity'] != '']
 
     return df_assembled, df_stock
 
@@ -102,11 +123,11 @@ def merge_df(df_grouped, df_stock):
 def main():
     fit_list = load_fits()
     df = fits_dataframe(fit_list)
-    df_grouped = df.groupby(['item_type', 'item_name'], as_index=False).sum()
+    df_grouped = df.groupby(['system', 'item_type', 'item_name'], as_index=False).sum()
     
-    df_grouped = df_grouped[['item_type', 'item_name', 'item_count']].sort_values(['item_type', 'item_name', 'item_count'], ascending=[False, True, False])
+    df_grouped = df_grouped[['system', 'item_type', 'item_name', 'item_count']].sort_values(['system', 'item_type', 'item_name', 'item_count'], ascending=[True, False, True, False])
 
-    df_combined = merge_df(df_grouped, df_stock)
+    #df_combined = merge_df(df_grouped, df_stock)
     
     # Join ship stock
     #df_grouped.merge(df_ships, left_on='item_name', right_on='Name', how='left')
