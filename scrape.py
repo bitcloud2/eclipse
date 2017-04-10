@@ -95,6 +95,8 @@ def fits_dataframe(fit_list):
 
 
 def stock():
+    df_assembled = pd.DataFrame(columns=config.ship_hanger_columns)
+    df_stock = pd.DataFrame(columns=config.ship_hanger_columns)
     # Loop through systems where fits are needed.
     for system in config.unkindness_stock_master.keys():
         df_total = pd.DataFrame()
@@ -107,9 +109,9 @@ def stock():
             df_temp['system'] = system
             df_total = df_total.append(df_temp)
         # Any items/ships that have been assembled, ie Fit ships, are stored here
-        df_assembled = df_total[df_total['quantity'] == '']
+        df_assembled = df_assembled.append(df_total[df_total['quantity'] == ''])
         # Any items/ships that have not been assembled, ie backstock items, are stored here
-        df_stock = df_total[df_total['quantity'] != '']
+        df_stock = df_stock.append(df_total[df_total['quantity'] != ''])
 
     return df_assembled, df_stock
 
@@ -130,7 +132,7 @@ def main():
     #df_combined = merge_df(df_grouped, df_stock)
     
     # Join ship stock
-    #df_grouped.merge(df_ships, left_on='item_name', right_on='Name', how='left')
+    #df_grouped.merge(df_grouped, left_on='item_name', right_on='Name', how='left')
 
     writer = pd.ExcelWriter('fit_summary.xlsx', engine='xlsxwriter')
     df_grouped.to_excel(writer, sheet_name='Sheet1')
