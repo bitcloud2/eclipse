@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 import time
@@ -21,9 +22,11 @@ def load_fits(directory=config.unkindness_fits_path):
 
     return fit_list
 
+
 def create_dict(fit, item_type, item_name, item_count):
     
     return {'fit': fit, 'item_type': item_type, 'item_name': item_name, 'item_count': item_count}
+
 
 def count_total(current_fit):
     count = 0
@@ -41,6 +44,7 @@ def fits_dataframe(fit_list):
         with open(fit_path, 'r') as f:
             fit = f.read()
 
+        current_assembled = 0
         current_fit = ''
         current_type = 'ship'
         current_item = ''
@@ -75,12 +79,38 @@ def fits_dataframe(fit_list):
     
     return df
 
+
+def stock(system):
+    df_total = pd.DataFrame()
+    for hanger in ['ships', 'items']:
+        with open('/home/bitcloudo/eclipse/stock/unkindness/{}_{}.txt'.format(system, hanger)) as f:
+            reader = csv.reader(f, delimiter="\t")
+            d = list(reader)
+        df_total = df_total.append(pd.DataFrame(d, columns=config.ship_hanger_columns))
+    df_assembled = df_total[df_total['quantity'] == '']
+    df_stock = df_total[df_total['quantity'] != '']
+
+    return df_assembled, df_stock
+
+
+def merge_df(df_grouped, df_stock):
+    for system in config.unkindness_stock_master.keys():
+        stock(system)
+
+
+
 def main():
     fit_list = load_fits()
     df = fits_dataframe(fit_list)
     df_grouped = df.groupby(['item_type', 'item_name'], as_index=False).sum()
     
     df_grouped = df_grouped[['item_type', 'item_name', 'item_count']].sort_values(['item_type', 'item_name', 'item_count'], ascending=[False, True, False])
+
+    df_combined = merge_df(df_grouped, df_stock)
+    
+    # Join ship stock
+    #df_grouped.merge(df_ships, left_on='item_name', right_on='Name', how='left')
+
     writer = pd.ExcelWriter('fit_summary.xlsx', engine='xlsxwriter')
     df_grouped.to_excel(writer, sheet_name='Sheet1')
     writer.save()
