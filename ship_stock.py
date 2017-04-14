@@ -22,7 +22,6 @@ def load_fits(directory=config.unkindness_fits_path):
 
     return fit_list
 
-
 def create_dict(fit, item_type, item_name, item_count, system):
     
     return {'fit': fit,
@@ -32,24 +31,17 @@ def create_dict(fit, item_type, item_name, item_count, system):
             'system': system}
 
 
-def count_total(current_fit):
+def count_total(current_fit, clean_dict=config.unkindness_stock_master):
     count = []
-    for system in config.unkindness_stock_master.keys():
-        count.append((config.unkindness_stock_master[system][current_fit],
+    for system in clean_dict.keys():
+        count.append((clean_dict[system][current_fit],
                       system))
     
     return count
 
-def system_counts(df, assembled_dict, stock_dict, current_fit, current_type, current_item):
-    for k in config.unkindness_stock_master.keys():
-        df_assembled
-
-def fits_dataframe(fit_list):
+def fits_dataframe(fit_list, clean_dict):
     columns = ['fit', 'item_type', 'item_name', 'item_count', 'system']
     df = pd.DataFrame(columns=columns)
-
-    # Assess the stocks from each system
-    assembled_dict, stock_dict = stock()
 
     for fit_path in fit_list:
         with open(fit_path, 'r') as f:
@@ -68,7 +60,7 @@ def fits_dataframe(fit_list):
             if i == 0:
                 current_fit = line
                 current_item = line.split(',')[0][1:]
-                count_list = count_total(current_fit)
+                count_list = count_total(current_fit, clean_dict)
                 for item_count, system in count_list:
                     df = df.append([create_dict(current_fit, current_type, current_item, item_count, system)])
             elif i == 1:
@@ -81,10 +73,10 @@ def fits_dataframe(fit_list):
                 if current_type == 'ammo':
                     current_item, item_count = line.rsplit(' x')
                     item_count = int(item_count)
-                    item_count *= count_total(current_fit)
+                    item_count *= count_total(current_fit, clean_dict)
                 else:
                     current_item = line
-                    count_list = count_total(current_fit)
+                    count_list = count_total(current_fit, clean_dict)
                 # Loop through each of systems adding rows for the unique item's counts
                 for item_count, system in count_list:
                     df = df.append([create_dict(current_fit, current_type, current_item, item_count, system)])
@@ -115,16 +107,51 @@ def stock():
 
     return df_assembled, df_stock
 
+def current_needs(df_assembled):
+    df_stock_master = pd.DataFrame(config.unkindness_stock_master)
+    df_stock_master['ship'] = map(lambda line: line.split(',')[0][1:], df_stock_master.index)
+    df_stock_master['fit'] = df_stock_master.index
+    df_assembled_ships = df_assembled[['name', 'system']]
+    df_assembled_ships['stock_count'] = 1
+    # Add column for each system at attribute stock_count as values
+    for system in df_assembled_ships['system'].unique():
+        df_assembled_ships.ix[df_assembled_ships['system'] == system, system] = df_assembled_ships['stock_count']
 
-def merge_df(df_grouped, df_stock):
-    for system in config.unkindness_stock_master.keys():
-        stock(system)
+    df_assembled_group = df_assembled_ships.groupby(['name', 'system'], as_index=False).sum()
+    
+    df_combined = df_stock_master.merge(df_assembled_group,
+                                        left_on=['ship'],
+                                        right_on=['name'],
+                                        suffixes=('', '_stock'),
+                                        how='left')
 
+    df_combined.fillna(0, inplace=True)
 
+    # Loop through systems adding the stock in for each fo them
+    # TODO: Make work for multiple fits of the same ship
+    for system2 in df_assembled_ships['system'].unique():
+        df_combined[system2] = df_combined[system2] - df_combined[system2 + '_stock']
+        df_combined[system2] = df_combined[system2].astype(int)
+        df_combined.drop([system2 + '_stock'], axis=1, inplace=True)
+    # Drop rows with all zeros
+    df_total = df_combined[(df_combined.T != 0).any()]
+    # Getting rid of useless columns here
+    df_total.drop(['name', 'system', 'stock_count'], axis=1, inplace=True)
+    # Remove rows without a need for items
+    df_total = df_total.clip_lower(0)
+    # Place ships in index to remove any all zero values
+    df_total_grouped = df_total.groupby(['fit']).sum()
+    df_clean = df_total_grouped[(df_total_grouped.T !=0).any()]
+    # Convert back to original dict format
+    clean_dict = df_clean.to_dict()
+
+    return clean_dict
 
 def main():
     fit_list = load_fits()
-    df = fits_dataframe(fit_list)
+    df_assembled, df_stock = stock()
+    clean_dict = current_needs(df_assembled)
+    df = fits_dataframe(fit_list, clean_dict)
     df_grouped = df.groupby(['system', 'item_type', 'item_name'], as_index=False).sum()
     
     df_grouped = df_grouped[['system', 'item_type', 'item_name', 'item_count']].sort_values(['system', 'item_type', 'item_name', 'item_count'], ascending=[True, False, True, False])
