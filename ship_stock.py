@@ -150,6 +150,15 @@ def current_needs(df_assembled):
 
     return clean_dict
 
+def merge_df(df_grouped, df_stock):
+    df_merged = df_grouped.merge(df_stock, left_on=['system', 'item_name'], right_on=['system', 'name'], how='left')
+    df_merged.fillna(0, inplace=True)
+    df_merged['quantity'] = df_merged['quantity'].astype(int)
+    df_merged['item_count'] = df_merged['item_count'] - df_merged['quantity']
+    df_result = df_merged[df_merged['item_count'] > 0][['system', 'item_type', 'item_name', 'item_count']]
+
+    return df_result
+
 def main():
     fit_list = load_fits()
     df_assembled, df_stock = stock()
@@ -158,14 +167,11 @@ def main():
     df_grouped = df.groupby(['system', 'item_type', 'item_name'], as_index=False).sum()
     
     df_grouped = df_grouped[['system', 'item_type', 'item_name', 'item_count']].sort_values(['system', 'item_type', 'item_name', 'item_count'], ascending=[True, False, True, False])
-
-    #df_combined = merge_df(df_grouped, df_stock)
     
-    # Join ship stock
-    #df_grouped.merge(df_grouped, left_on='item_name', right_on='Name', how='left')
-
+    df_merged = merge_df(df_grouped, df_stock)
+    
     writer = pd.ExcelWriter('fit_summary.xlsx', engine='xlsxwriter')
-    df_grouped.to_excel(writer, sheet_name='Sheet1')
+    df_merged.to_excel(writer, sheet_name='Sheet1')
     writer.save()
     
     print "Complete!!!"
