@@ -56,14 +56,14 @@ def fits_dataframe(fit_list, clean_dict):
         for i, line in enumerate(fit.splitlines()):
             current_line = current_line[1:]
             current_line.extend([line])
-            current_set = set(current_line)
+            current_set = set(current_line[1:])
             if i == 0:
                 current_fit = line
                 current_item = line.split(',')[0][1:]
                 count_list = count_total(current_fit, clean_dict)
                 for item_count, system in count_list:
                     df = df.append([create_dict(current_fit, current_type, current_item, item_count, system)])
-            elif i == 1:
+            elif i == 1 and current_type != 'ammo':
                 current_type = 'module'
             elif len(current_set) == 1:
                 if list(current_set)[0] == '':
