@@ -71,6 +71,7 @@ def fits_dataframe(fit_list, clean_dict):
 
             if i!= 0 and line != '':
                 if current_type == 'ammo':
+                    print line
                     current_item, item_count = line.rsplit(' x')
                     item_count = int(item_count)
                     item_count *= count_total(current_fit, clean_dict)
@@ -115,7 +116,8 @@ def current_needs(df_assembled):
     df_assembled_ships['stock_count'] = 1
     # Add column for each system at attribute stock_count as values
     for system in df_assembled_ships['system'].unique():
-        df_assembled_ships.ix[df_assembled_ships['system'] == system, system] = df_assembled_ships['stock_count']
+        df_assembled_ships.ix[df_assembled_ships['system'] == system, system] = \
+                df_assembled_ships[df_assembled_ships['system'] == system]['stock_count']
 
     df_assembled_group = df_assembled_ships.groupby(['name', 'system'], as_index=False).sum()
     
