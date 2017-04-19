@@ -71,15 +71,16 @@ def fits_dataframe(fit_list, clean_dict):
 
             if i!= 0 and line != '':
                 if current_type == 'ammo':
-                    print line
-                    current_item, item_count = line.rsplit(' x')
-                    item_count = int(item_count)
-                    item_count *= count_total(current_fit, clean_dict)
+                    current_item, ammo_count = line.rsplit(' x')
+                    ammo_count = int(ammo_count)
+                    #ammo_count *= count_total(current_fit, clean_dict)
                 else:
                     current_item = line
                     count_list = count_total(current_fit, clean_dict)
                 # Loop through each of systems adding rows for the unique item's counts
                 for item_count, system in count_list:
+                    if current_type == 'ammo':
+                        item_count *= ammo_count
                     df = df.append([create_dict(current_fit, current_type, current_item, item_count, system)])
             else:
                 pass
